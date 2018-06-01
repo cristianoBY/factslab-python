@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 
 from torch.nn import LSTM, SmoothL1Loss, L1Loss, CrossEntropyLoss
-
+from torch.cuda import is_available
 from factslab.utility import load_glove_embedding
 from factslab.datastructures import ConstituencyTree
 from factslab.pytorch.childsumtreelstm import ChildSumConstituencyTreeLSTM
@@ -74,9 +74,10 @@ vocab = list({word
 # load the glove embedding
 embeddings = load_glove_embedding('../../../embeddings/glove/glove.42B.300d', vocab)
 
+cuda_or_not = is_available()
 
 # train the model
-trainer = RNNRegressionTrainer(embeddings=embeddings, gpu=True,
+trainer = RNNRegressionTrainer(embeddings=embeddings, gpu=cuda_or_not,
                                rnn_classes=ChildSumConstituencyTreeLSTM,
                                bidirectional=True, attention=True,
                                regression_type=args.regressiontype,

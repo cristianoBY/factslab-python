@@ -4,7 +4,7 @@ import torch.nn.functional as F
 
 from abc import ABCMeta, abstractmethod
 from factslab.datastructures import ConstituencyTree
-from torch.autograd import Variable
+# from torch.autograd import Variable
 from torch.nn.modules.dropout import Dropout
 from torch.nn.modules.rnn import RNNBase
 
@@ -40,7 +40,7 @@ class ChildSumTreeLSTM(RNNBase):
         """
         Parameters
         ----------
-        inputs : torch.autograd.Variable
+        inputs : torch.autograd.Tensor
             a 2D (steps x embedding dimension) or a 3D tensor (steps x
             batch dimension x embedding dimension); the batch
             dimension must always have size == 1, since this module
@@ -54,8 +54,8 @@ class ChildSumTreeLSTM(RNNBase):
 
         Returns
         -------
-        hidden_all : torch.autograd.Variable
-        hidden_final : torch.autograd.Variable
+        hidden_all : torch.autograd.Tensor
+        hidden_final : torch.autograd.Tensor
             the hidden state of the trees root node; if there are two
             or more such nodes, the average of their hidden states is
             returned
@@ -237,15 +237,15 @@ class ChildSumTreeLSTM(RNNBase):
             c_prev = torch.stack(c_prev, 1)
 
         elif inputs.is_cuda:
-            h_prev = Variable(torch.zeros(self.hidden_size, 1),
+            h_prev = torch.zeros(self.hidden_size, 1,
                               requires_grad=False).cuda()
-            c_prev = Variable(torch.zeros(self.hidden_size, 1),
+            c_prev = torch.zeros(self.hidden_size, 1,
                               requires_grad=False).cuda()
 
         else:
-            h_prev = Variable(torch.zeros(self.hidden_size, 1),
+            h_prev = torch.zeros(self.hidden_size, 1,
                               requires_grad=False)
-            c_prev = Variable(torch.zeros(self.hidden_size, 1),
+            c_prev = torch.zeros(self.hidden_size, 1,
                               requires_grad=False)
 
         return oidx, (h_prev, c_prev)
@@ -301,27 +301,27 @@ class ChildSumConstituencyTreeLSTM(ChildSumTreeLSTM):
             x_t = torch.cat([self.hidden_state[layer-1]['up'][idx],
                              self.hidden_state[layer-1]['down'][idx]])
         elif layer > 0:
-            x_t = self.hidden_state[layer-1]['up'][idx]
+            x_t = self.hidden_state[layer - 1]['up'][idx]
         else:
             if idx in tree.terminal_indices:
                 string_idx = tree.terminal_indices.index(idx)
 
                 if self._has_batch_dimension:
-                    x_t = inputs[string_idx,0]
+                    x_t = inputs[string_idx, 0]
                 else:
                     x_t = inputs[string_idx]
             else:
                 if self._has_batch_dimension:
-                    x_t_raw = torch.zeros(self.input_size,1)
+                    x_t_raw = torch.zeros(self.input_size, 1,
+                                          requires_grad=False)
                 else:
-                    x_t_raw = torch.zeros(self.input_size)
+                    x_t_raw = torch.zeros(self.input_size,
+                                          requires_grad=False)
 
                 if inputs.is_cuda:
-                    x_t = Variable(x_t_raw,
-                                   requires_grad=False).cuda()
+                    x_t = x_t_raw.cuda()
 
                 else:
-                    x_t = Variable(x_t_raw,
-                                   requires_grad=False)
+                    x_t = x_t_raw
 
         return x_t

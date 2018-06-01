@@ -18,7 +18,7 @@ def load_glove_embedding(fpath, vocab):
 
     zipname = os.path.split(fpath)[-1]
     size, dim = zipname.split('.')[1:3]
-    fpathout = 'glove.'+size+'.'+dim+'.filtered.txt'
+    fpathout = 'glove.' + size + '.' + dim + '.filtered.txt'
 
     if fpathout in os.listdir(os.getcwd()):
         embedding = pd.read_csv(fpathout, index_col=0, header=None, sep=' ')
