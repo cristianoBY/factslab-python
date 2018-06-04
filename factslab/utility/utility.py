@@ -48,8 +48,8 @@ def load_glove_embedding(fpath, vocab):
 def partition(l, n):
     """partition a list in n blocks"""
 
-    for i in range(0, len(l)+1, n):
-        if i < (len(l)-n):
-            yield l[i:(i+n)]
+    for i in range(0, len(l) + 1, n):
+        if i < (len(l) - n):
+            yield l[i: (i + n)]
         else:
             yield l[i:]

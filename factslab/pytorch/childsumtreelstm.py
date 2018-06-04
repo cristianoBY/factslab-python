@@ -237,18 +237,15 @@ class ChildSumTreeLSTM(RNNBase):
             c_prev = torch.stack(c_prev, 1)
 
         elif inputs.is_cuda:
-            h_prev = torch.zeros(self.hidden_size, 1,
-                              requires_grad=False).cuda()
-            c_prev = torch.zeros(self.hidden_size, 1,
-                              requires_grad=False).cuda()
+            h_prev = torch.zeros(self.hidden_size, 1).cuda()
+            c_prev = torch.zeros(self.hidden_size, 1).cuda()
 
         else:
-            h_prev = torch.zeros(self.hidden_size, 1,
-                              requires_grad=False)
-            c_prev = torch.zeros(self.hidden_size, 1,
-                              requires_grad=False)
+            h_prev = torch.zeros(self.hidden_size, 1)
+            c_prev = torch.zeros(self.hidden_size, 1)
 
         return oidx, (h_prev, c_prev)
+
 
 class ChildSumDependencyTreeLSTM(ChildSumTreeLSTM):
     """A bidirectional extension of child-sum dependency tree LSTMs
@@ -312,11 +309,9 @@ class ChildSumConstituencyTreeLSTM(ChildSumTreeLSTM):
                     x_t = inputs[string_idx]
             else:
                 if self._has_batch_dimension:
-                    x_t_raw = torch.zeros(self.input_size, 1,
-                                          requires_grad=False)
+                    x_t_raw = torch.zeros(self.input_size, 1)
                 else:
-                    x_t_raw = torch.zeros(self.input_size,
-                                          requires_grad=False)
+                    x_t_raw = torch.zeros(self.input_size)
 
                 if inputs.is_cuda:
                     x_t = x_t_raw.cuda()

@@ -13,6 +13,7 @@ from collections import Iterable
 from factslab.utility import partition
 
 from .childsumtreelstm import *
+# import pdb
 
 
 class RNNRegression(torch.nn.Module):
@@ -145,6 +146,8 @@ class RNNRegression(torch.nn.Module):
         # copy the embeddings into the embedding layer
         if embeddings is not None:
             embeddings_torch = torch.from_numpy(embeddings.values)
+            # self.embeddings.weight = Parameter(torch.tensor(embeddings_torch),
+                                               # requires_grad=True)
             self.embeddings.weight.data.copy_(embeddings_torch)
 
         # construct the hash
@@ -250,7 +253,7 @@ class RNNRegression(torch.nn.Module):
 
     def _run_attention(self, h_all, return_weights=False):
         att_raw = torch.mm(h_all, self.attention_map[:, None])
-        att = F.softmax(att_raw.squeeze())
+        att = F.softmax(att_raw.squeeze(), dim=0)
 
         if return_weights:
             return att
@@ -284,10 +287,10 @@ class RNNRegression(torch.nn.Module):
 
     def _get_inputs(self, words):
         indices = [[self.vocab_hash[w]] for w in words]
-        indices = torch.LongTensor(indices, requires_grad=True)
+        indices = torch.tensor(indices, dtype=torch.long)
         indices = indices.cuda() if self.gpu else indices
 
-        return self.embeddings(indices).squeeze()
+        return self.embeddings(indices.detach()).squeeze()
 
     def word_embeddings(self, words=[]):
         """Extract the tuned word embeddings
@@ -403,7 +406,7 @@ class RNNRegressionTrainer(object):
         self._X, self._Y = X, Y
 
         self._initialize_regression()
-
+        # pdb.set_trace()
         optimizer = self._optimizer_class(self._regression.parameters(),
                                           **kwargs)
 
@@ -417,7 +420,7 @@ class RNNRegressionTrainer(object):
 
         loss_trace = []
         targ_trace = []
-
+        print("PROGRESS" + "\t METRICS")
         while True:
             losses = []
 
@@ -432,9 +435,9 @@ class RNNRegressionTrainer(object):
                     targ_trace.append(targ)
 
                     if self._continuous:
-                        targ = torch.FloatTensor([targ], requires_grad=False)
+                        targ = torch.tensor([targ], dtype=torch.float)
                     else:
-                        targ = torch.LongTensor([int(targ)], requires_grad=False)
+                        targ = torch.tensor([int(targ)], dtype=torch.long)
 
                     targ = targ.cuda() if self.gpu else targ
 
@@ -454,7 +457,7 @@ class RNNRegressionTrainer(object):
                 optimizer.step()
                 losses = []
 
-                loss_trace.append(loss.data[0])
+                loss_trace.append(loss.item())
 
                 # TODO: generalize for non-linear regression
                 if verbosity and i:
