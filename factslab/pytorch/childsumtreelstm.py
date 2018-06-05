@@ -4,7 +4,6 @@ import torch.nn.functional as F
 
 from abc import ABCMeta, abstractmethod
 from factslab.datastructures import ConstituencyTree
-# from torch.autograd import Variable
 from torch.nn.modules.dropout import Dropout
 from torch.nn.modules.rnn import RNNBase
 

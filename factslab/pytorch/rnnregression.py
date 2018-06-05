@@ -65,18 +65,18 @@ class RNNRegression(torch.nn.Module):
         the size of the hidden states in each layer of a
         multilayer regression, going from input (RNN hidden state)
         to output
-    gpu : bool
-        whether to use the gpu
+    device : string
+        specifies the device to use - "cuda:0" or "cpu"
     """
 
     def __init__(self, embeddings=None, embedding_size=None, vocab=None,
                  rnn_classes=LSTM, rnn_hidden_sizes=300,
                  num_rnn_layers=1, bidirectional=False, attention=False,
-                 regression_hidden_sizes=[], output_size=1, gpu=False):
+                 regression_hidden_sizes=[], output_size=1, device="cpu"):
         super().__init__()
 
         # set hardware parameters
-        self.gpu = gpu
+        self.device = device
 
         # initialize model
         self._initialize_embeddings(embeddings, vocab)
@@ -172,7 +172,7 @@ class RNNRegression(torch.nn.Module):
                             hidden_size=hsize,
                             num_layers=lnum,
                             bidirectional=bi)
-            rnn = rnn.cuda() if self.gpu else rnn
+            rnn = rnn.to(self.device)
             self.rnns.append(rnn)
             output_size = hsize * 2 if bi else hsize
 
@@ -192,12 +192,12 @@ class RNNRegression(torch.nn.Module):
 
         for h in hidden_sizes:
             linmap = torch.nn.Linear(last_size, h)
-            linmap = linmap.cuda() if self.gpu else linmap
+            linmap = linmap.to(self.device)
             self.linear_maps.append(linmap)
             last_size = h
 
         linmap = torch.nn.Linear(last_size, output_size)
-        linmap = linmap.cuda() if self.gpu else linmap
+        linmap = linmap.to(self.device)
         self.linear_maps.append(linmap)
 
     def forward(self, structures):
@@ -288,7 +288,7 @@ class RNNRegression(torch.nn.Module):
     def _get_inputs(self, words):
         indices = [[self.vocab_hash[w]] for w in words]
         indices = torch.tensor(indices, dtype=torch.long)
-        indices = indices.cuda() if self.gpu else indices
+        indices = indices.to(self.device)
 
         return self.embeddings(indices.detach()).squeeze()
 
@@ -362,31 +362,31 @@ class RNNRegressionTrainer(object):
                          "multinomial": CrossEntropyLoss}
 
     def __init__(self, regression_type="linear",
-                 optimizer_class=torch.optim.Adam, gpu=False, **kwargs):
+                 optimizer_class=torch.optim.Adam, device="cpu", **kwargs):
         self._regression_type = regression_type
         self._optimizer_class = optimizer_class
         self._init_kwargs = kwargs
 
         self._continuous = regression_type != "multinomial"
 
-        self.gpu = gpu
+        self.device = device
 
     def _initialize_regression(self):
         if self._continuous:
-            self._regression = RNNRegression(gpu=self.gpu,
+            self._regression = RNNRegression(device=self.device,
                                              **self._init_kwargs)
         else:
             output_size = np.unique(self._Y).shape[0]
             self._regression = RNNRegression(output_size=output_size,
-                                             gpu=self.gpu,
+                                             device=self.device,
                                              **self._init_kwargs)
 
         lf_class = self.__class__.loss_function_map[self._regression_type]
         self._loss_function = lf_class()
 
-        if self.gpu:
-            self._regression = self._regression.cuda()
-            self._loss_function = self._loss_function.cuda()
+        # Move models to the required device
+        self._regression = self._regression.to(self.device)
+        self._loss_function = self._loss_function.to(self.device)
 
     def fit(self, X, Y, batch_size=100, verbosity=1, **kwargs):
         """Fit the LSTM regression
@@ -439,7 +439,7 @@ class RNNRegressionTrainer(object):
                     else:
                         targ = torch.tensor([int(targ)], dtype=torch.long)
 
-                    targ = targ.cuda() if self.gpu else targ
+                    targ = targ.to(self.device)
 
                     predicted = self._regression(struct)
                     # predicted = predicted.expand_as(targ)

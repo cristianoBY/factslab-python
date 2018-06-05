@@ -2,18 +2,19 @@ import argparse
 import numpy as np
 import pandas as pd
 
-from torch.nn import LSTM, SmoothL1Loss, L1Loss, CrossEntropyLoss
+# from torch.nn import LSTM, SmoothL1Loss, L1Loss, CrossEntropyLoss
+from torch import device
 from torch.cuda import is_available
 from factslab.utility import load_glove_embedding
 from factslab.datastructures import ConstituencyTree
 from factslab.pytorch.childsumtreelstm import ChildSumConstituencyTreeLSTM
 from factslab.pytorch.rnnregression import RNNRegressionTrainer
 
-## initialize argument parser
+# initialize argument parser
 description = 'Run an RNN regression on MegaAttitude.'
 parser = argparse.ArgumentParser(description=description)
 
-## file handling
+# file handling
 parser.add_argument('--data',
                     type=str,
                     default='megaacceptability_v1.csv')
@@ -24,7 +25,7 @@ parser.add_argument('--regressiontype',
                     type=str,
                     default="linear")
 
-## parse arguments
+# parse arguments
 args = parser.parse_args()
 
 data = pd.read_csv(args.data)
@@ -36,7 +37,7 @@ data = data[~data.exclude]
 data = data[~data.response.isnull()]
 
 # the intransitive frame is denoted by an empty string, so make it overt
-data.loc[data.frame.isnull(),'frame'] = 'null'
+data.loc[data.frame.isnull(), 'frame'] = 'null'
 
 if args.regressiontype == "multinomial":
     # make smallest response value 0
@@ -44,12 +45,12 @@ if args.regressiontype == "multinomial":
 
 else:
     # convert responses to logit ridit scores
-    data['response'] = data.groupby('participant').response.apply(lambda x: x.rank()/(len(x)+1.))
-    data['response'] = np.log(data.response) - np.log(1.-data.response)
+    data['response'] = data.groupby('participant').response.apply(lambda x: x.rank() / (len(x) + 1.))
+    data['response'] = np.log(data.response) - np.log(1. - data.response)
 
 # convert "email" to "e-mail" to deal with differences between
 # megaattitude_v1.csv and structures.tsv
-data['condition'] = data.verb.replace('email', 'e-mail')+'-'+data.frame+'-'+data.voice
+data['condition'] = data.verb.replace('email', 'e-mail') + '-' + data.frame + '-' + data.voice
 
 # load structures into a dictionary
 with open(args.structures) as f:
@@ -74,12 +75,14 @@ vocab = list({word
 # load the glove embedding
 embeddings = load_glove_embedding('../../../../Downloads/glove.42B.300d',
                                   vocab)
+
 print("Finished loading embeddings.\n")
-cuda_or_not = is_available()        # Check if cuda is available
+
+device_to_use = device("cuda:0" if is_available() else "cpu")
 
 # train the model
 
-trainer = RNNRegressionTrainer(embeddings=embeddings, gpu=cuda_or_not,
+trainer = RNNRegressionTrainer(embeddings=embeddings, device=device_to_use,
                                rnn_classes=ChildSumConstituencyTreeLSTM,
                                bidirectional=True, attention=True,
                                regression_type=args.regressiontype,
