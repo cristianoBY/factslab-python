@@ -2,7 +2,7 @@ import argparse
 import numpy as np
 import pandas as pd
 
-# from torch.nn import LSTM, SmoothL1Loss, L1Loss, CrossEntropyLoss
+from torch.nn import LSTM, SmoothL1Loss, L1Loss, CrossEntropyLoss
 from torch import device
 from torch.cuda import is_available
 from factslab.utility import load_glove_embedding
@@ -72,34 +72,24 @@ vocab = list({word
               for tree in structures.values()
               for word in tree.leaves()})
 
+print("Loading word embeddings...\n")
 # load the glove embedding
 embeddings = load_glove_embedding('../../../../Downloads/glove.42B.300d',
                                   vocab)
 
-print("Finished loading embeddings.\n")
-
+# pyTorch figures out device to do computation on
 device_to_use = device("cuda:0" if is_available() else "cpu")
 
 # train the model
-
+print("Training the model...\n")
 trainer = RNNRegressionTrainer(embeddings=embeddings, device=device_to_use,
-                               rnn_classes=ChildSumConstituencyTreeLSTM,
+                               rnn_classes=ChildSumConstituencyTreLSTM,
                                bidirectional=True, attention=True,
                                regression_type=args.regressiontype,
                                rnn_hidden_sizes=300, num_rnn_layers=1,
                                regression_hidden_sizes=(150,))
-print("Training phase\n")
+
 trainer.fit(X=[[structures[c] for c in data.condition.values]],
             Y=data.response.values,
             lr=1e-2, batch_size=100,
             verbosity=1)
-
-# trainer = RNNRegressionTrainer(embeddings=embeddings, gpu=True,
-#                                rnn_classes=[LSTM, ChildSumConstituencyTreeLSTM],
-#                                regression_type=args.regressiontype,
-#                                rnn_hidden_sizes=300, num_rnn_layers=1,
-#                                regression_hidden_sizes=(150,))
-# trainer.fit(X=[[structures[c].words() for c in data.condition.values],
-#                [structures[c] for c in data.condition.values]],
-#             Y=data.response.values,
-#             lr=1., batch_size=1000)

@@ -13,7 +13,7 @@ from collections import Iterable
 from factslab.utility import partition
 
 from .childsumtreelstm import *
-# import pdb
+import pdb
 
 
 class RNNRegression(torch.nn.Module):
@@ -146,8 +146,6 @@ class RNNRegression(torch.nn.Module):
         # copy the embeddings into the embedding layer
         if embeddings is not None:
             embeddings_torch = torch.from_numpy(embeddings.values)
-            # self.embeddings.weight = Parameter(torch.tensor(embeddings_torch),
-                                               # requires_grad=True)
             self.embeddings.weight.data.copy_(embeddings_torch)
 
         # construct the hash
@@ -245,6 +243,7 @@ class RNNRegression(torch.nn.Module):
             if isinstance(rnn, ChildSumTreeLSTM):
                 h_all, h_last = rnn(inputs, structure)
             else:
+                # pdb.set_trace()
                 h_all, h_last = rnn(inputs[:, None, :])
 
             inputs = h_all.squeeze()
@@ -252,13 +251,14 @@ class RNNRegression(torch.nn.Module):
         return h_all, h_last
 
     def _run_attention(self, h_all, return_weights=False):
-        att_raw = torch.mm(h_all, self.attention_map[:, None])
+        # pdb.set_trace()
+        att_raw = torch.mm(h_all.squeeze(), self.attention_map[:, None])
         att = F.softmax(att_raw.squeeze(), dim=0)
 
         if return_weights:
             return att
         else:
-            return torch.mm(att[None, :], h_all).squeeze()
+            return torch.mm(att[None, :], h_all.squeeze()).squeeze()
 
     def _run_regression(self, h_last):
         for i, linear_map in enumerate(self.linear_maps):
