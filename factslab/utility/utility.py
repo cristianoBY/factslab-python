@@ -22,21 +22,19 @@ def load_glove_embedding(fpath, vocab):
 
     if fpathout in os.listdir(os.getcwd()):
         embedding = pd.read_csv(fpathout, index_col=0, header=None, sep=' ')
-
     else:
-        fname = 'glove.'+size+'.'+dim+'.txt'
-        f_emb = ZipFile(fpath+'.zip').open(fname)
+        fname = 'glove.' + size + '.' + dim + '.txt'
+        f_emb = ZipFile(fpath + '.zip').open(fname)
 
         emb = np.array([l.decode().strip().split()
                         for l in f_emb
                         if l.split()[0].decode() in vocab])
 
-        embedding = pd.DataFrame(emb[:,1:].astype(float), index=emb[:,0])
-
+        embedding = pd.DataFrame(emb[:, 1:].astype(float), index=emb[:, 0])
 
         mean_emb = list(embedding.mean(axis=0).values)
         oov = [w for w in vocab if w not in embedding.index.values]
-        oov = pd.DataFrame(np.tile(mean_emb, [len(oov),1]), index=oov)
+        oov = pd.DataFrame(np.tile(mean_emb, [len(oov), 1]), index=oov)
 
         embedding = pd.concat([embedding, oov], axis=0)
 

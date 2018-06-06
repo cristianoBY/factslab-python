@@ -13,7 +13,7 @@ from collections import Iterable
 from factslab.utility import partition
 
 from .childsumtreelstm import *
-import pdb
+# import pdb
 
 
 class RNNRegression(torch.nn.Module):
@@ -243,7 +243,6 @@ class RNNRegression(torch.nn.Module):
             if isinstance(rnn, ChildSumTreeLSTM):
                 h_all, h_last = rnn(inputs, structure)
             else:
-                # pdb.set_trace()
                 h_all, h_last = rnn(inputs[:, None, :])
 
             inputs = h_all.squeeze()
@@ -251,7 +250,6 @@ class RNNRegression(torch.nn.Module):
         return h_all, h_last
 
     def _run_attention(self, h_all, return_weights=False):
-        # pdb.set_trace()
         att_raw = torch.mm(h_all.squeeze(), self.attention_map[:, None])
         att = F.softmax(att_raw.squeeze(), dim=0)
 
@@ -406,7 +404,6 @@ class RNNRegressionTrainer(object):
         self._X, self._Y = X, Y
 
         self._initialize_regression()
-        # pdb.set_trace()
         optimizer = self._optimizer_class(self._regression.parameters(),
                                           **kwargs)
 
@@ -414,10 +411,8 @@ class RNNRegressionTrainer(object):
             Y_counts = np.bincount(self._Y)
             self._Y_logprob = np.log(Y_counts) - np.log(np.sum(Y_counts))
 
-        # each element is of the form ((struct1, struct2, ...),
-        #                              target)
         structures_targets = list(zip(zip(*X), Y))
-
+        # Form is [((struct_11, struct_12,..), target_1), ((struct_21, struct_22,..), target_2)]
         loss_trace = []
         targ_trace = []
         print("PROGRESS" + "\t METRICS")
@@ -426,7 +421,6 @@ class RNNRegressionTrainer(object):
 
             shuffle(structures_targets)
             part = partition(structures_targets, batch_size)
-
             for i, structs_targs_batch in enumerate(part):
 
                 optimizer.zero_grad()
@@ -440,7 +434,6 @@ class RNNRegressionTrainer(object):
                         targ = torch.tensor([int(targ)], dtype=torch.long)
 
                     targ = targ.to(self.device)
-
                     predicted = self._regression(struct)
                     # predicted = predicted.expand_as(targ)
 
@@ -477,36 +470,44 @@ class RNNRegressionTrainer(object):
                 targ_var = np.mean(np.square(np.array(targ_trace) - np.mean(self._Y)))
                 r2 = 1. - (resid_mean / targ_var)
 
-                print(str(i) + '\t residual variance:\t', np.round(resid_mean, sigdig), '\n',
-                      ' \t total variance:\t', np.round(targ_var, sigdig), '\n',
-                      ' \t r-squared:\t\t', np.round(r2, sigdig), '\n')
+                print(str(i) + '\t residual variance:\t',
+                      np.round(resid_mean, sigdig), '\n',
+                      ' \t total variance:\t', np.round(targ_var, sigdig),
+                      '\n', ' \t r-squared:\t\t', np.round(r2, sigdig), '\n')
 
             elif self._regression_type == "robust":
                 ae = np.abs(targ_trace - np.median(self._Y))
                 mae = np.mean(ae)
                 pmae = 1. - (resid_mean / mae)
 
-                print(str(i) + '\t residual absolute error:\t', np.round(resid_mean, sigdig), '\n',
-                      ' \t total absolute error:\t\t', np.round(mae, sigdig), '\n',
-                      ' \t proportion absolute error:\t', np.round(pmae, sigdig), '\n')
+                print(str(i) + '\t residual absolute error:\t',
+                      np.round(resid_mean, sigdig), '\n',
+                      ' \t total absolute error:\t\t', np.round(mae, sigdig),
+                      '\n', ' \t proportion absolute error:\t',
+                      np.round(pmae, sigdig), '\n')
 
             elif self._regression_type == "robust_smooth":
                 ae = huber(1., targ_trace - np.median(self._Y))
                 mae = np.mean(ae)
                 pmae = 1. - (resid_mean / mae)
 
-                print(str(i) + '\t residual absolute error:\t', np.round(resid_mean, sigdig), '\n',
-                      ' \t total absolute error:\t\t', np.round(mae, sigdig), '\n',
-                      ' \t proportion absolute error:\t', np.round(pmae, sigdig), '\n')
+                print(str(i) + '\t residual absolute error:\t',
+                      np.round(resid_mean, sigdig), '\n',
+                      ' \t total absolute error:\t\t', np.round(mae, sigdig),
+                      '\n', ' \t proportion absolute error:\t',
+                      np.round(pmae, sigdig), '\n')
 
         else:
             model_mean_neglogprob = np.mean(loss_trace)
             targ_mean_neglogprob = -np.mean(self._Y_logprob[targ_trace])
             pnlp = 1. - (model_mean_neglogprob / targ_mean_neglogprob)
 
-            print(str(i) + '\t residual mean cross entropy:\t', np.round(model_mean_neglogprob, sigdig), '\n',
-                  ' \t total mean cross entropy:\t', np.round(targ_mean_neglogprob, sigdig), '\n',
-                  ' \t proportion entropy explained:\t', np.round(pnlp, sigdig), '\n')
+            print(str(i) + '\t residual mean cross entropy:\t',
+                  np.round(model_mean_neglogprob, sigdig), '\n',
+                  ' \t total mean cross entropy:\t',
+                  np.round(targ_mean_neglogprob, sigdig), '\n',
+                  ' \t proportion entropy explained:\t',
+                  np.round(pnlp, sigdig), '\n')
 
     def predict(self, X):
         """Predict using the LSTM regression

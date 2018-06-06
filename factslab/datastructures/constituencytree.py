@@ -26,7 +26,7 @@ class ConstituencyTree(nltk.Tree):
 
     def children_idx(self, idx):
         return [i for i in self.positions
-                if (len(idx)+1) == len(i)]
+                if (len(idx) + 1) == len(i)]
 
     def parents_idx(self, idx):
         if len(idx):

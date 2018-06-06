@@ -1,14 +1,14 @@
 import argparse
 import numpy as np
 import pandas as pd
-
-from torch.nn import LSTM, SmoothL1Loss, L1Loss, CrossEntropyLoss
+# from torch.nn import LSTM, SmoothL1Loss, L1Loss, CrossEntropyLoss
 from torch import device
 from torch.cuda import is_available
 from factslab.utility import load_glove_embedding
 from factslab.datastructures import ConstituencyTree
 from factslab.pytorch.childsumtreelstm import ChildSumConstituencyTreeLSTM
 from factslab.pytorch.rnnregression import RNNRegressionTrainer
+# import pdb
 
 # initialize argument parser
 description = 'Run an RNN regression on MegaAttitude.'
@@ -54,9 +54,11 @@ data['condition'] = data.verb.replace('email', 'e-mail') + '-' + data.frame + '-
 
 # load structures into a dictionary
 with open(args.structures) as f:
-    structures = dict([line.replace(',', 'COMMA').strip().split('\t') for line in f])
+    structures = dict([line.replace(',', 'COMMA').strip().split('\t')
+                       for line in f])
 
-    structures = {k: ConstituencyTree.fromstring(s) for k, s in structures.items()}
+    structures = {k: ConstituencyTree.fromstring(s)
+                  for k, s in structures.items()}
 
 for s in structures.values():
     s.collapse_unary(True, True)
@@ -83,13 +85,11 @@ device_to_use = device("cuda:0" if is_available() else "cpu")
 # train the model
 print("Training the model...\n")
 trainer = RNNRegressionTrainer(embeddings=embeddings, device=device_to_use,
-                               rnn_classes=ChildSumConstituencyTreLSTM,
+                               rnn_classes=ChildSumConstituencyTreeLSTM,
                                bidirectional=True, attention=True,
                                regression_type=args.regressiontype,
                                rnn_hidden_sizes=300, num_rnn_layers=1,
                                regression_hidden_sizes=(150,))
-
-trainer.fit(X=[[structures[c] for c in data.condition.values]],
-            Y=data.response.values,
-            lr=1e-2, batch_size=100,
-            verbosity=1)
+x = [[structures[c] for c in data.condition.values]]
+y = data.response.values
+trainer.fit(X=x, Y=y, lr=1e-2, batch_size=100, verbosity=1)
