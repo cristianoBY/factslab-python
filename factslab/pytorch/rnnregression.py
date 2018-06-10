@@ -144,7 +144,7 @@ class RNNRegression(torch.nn.Module):
         # copy the embeddings into the embedding layer
         if embeddings is not None:
             embeddings_torch = torch.from_numpy(embeddings.values)
-            self.embeddings.weight.data.copy_(embeddings_torch)
+            self.embeddings.weight = Parameter(embeddings_torch)
 
         # construct the hash
         self.vocab_hash = {w: i for i, w in enumerate(self.vocab)}
@@ -157,8 +157,8 @@ class RNNRegression(torch.nn.Module):
                                     num_rnn_layers, bidirectional)
         self._validate_parameters()
         
-        output_size = self.embedding_size
-        self.rnns = []
+        output_size = self.embedding_size #initialized to be used as input_size
+        self.rnn_maps = []
 
         params_zipped = zip(self.rnn_classes, self.rnn_hidden_sizes,
                             self.num_rnn_layers, self.bidirectional)
@@ -170,7 +170,7 @@ class RNNRegression(torch.nn.Module):
                             num_layers=lnum,
                             bidirectional=bi)
             rnn = rnn.cuda() if self.gpu else rnn
-            self.rnns.append(rnn)
+            self.rnn_maps.append(rnn)
             output_size = hsize*2 if bi else hsize
             
         self.rnn_output_size = output_size
@@ -196,7 +196,7 @@ class RNNRegression(torch.nn.Module):
         linmap = linmap.cuda() if self.gpu else linmap
         self.linear_maps.append(linmap)
         
-    def forward(self, structures):
+    def forward(self, structures, idxs=None):
         """
         Parameters
         ----------
@@ -222,22 +222,36 @@ class RNNRegression(torch.nn.Module):
                   "a sequence of words"
             raise ValueError(msg)
         
-        inputs = self._get_inputs(words)
+        inputs = self._get_inputs(words)    #Dim: [seq_len, embed_dim]
+        inputs = inputs.float() 
         inputs = self._preprocess_inputs(inputs)
         
         h_all, h_last = self._run_rnns(inputs, structures)
+        h_last = h_all[-1]
         
         if self.attention:
             h_last = self._run_attention(h_all)
 
-        h_last = self._run_regression(h_last)
+        if idxs:
+            h_last_list = []
+            y_hat_list = []
+            for idx in idxs:
+                h_last = h_all[idx]
+                h_last = self._run_regression(h_last)
+                y_hat = self._postprocess_outputs(h_last)
+                h_last_list.append(h_last)
+                y_hat_list.append(y_hat)
 
-        y_hat = self._postprocess_outputs(h_last)
+            return y_hat_list
+
+        else: #default index is the last in the sequence
+            h_last = self._run_regression(h_last)
+            y_hat = self._postprocess_outputs(h_last)
         
-        return y_hat
+            return y_hat
 
     def _run_rnns(self, inputs, structures):
-        for rnn, structure in zip(self.rnns, structures):            
+        for rnn, structure in zip(self.rnn_maps, structures):            
             if isinstance(rnn, ChildSumTreeLSTM):
                 h_all, h_last = rnn(inputs, structure)
             else:
@@ -248,13 +262,13 @@ class RNNRegression(torch.nn.Module):
         return h_all, h_last
 
     def _run_attention(self, h_all, return_weights=False):
-        att_raw = torch.mm(h_all, self.attention_map[:,None])
-        att = F.softmax(att_raw.squeeze())
+        att_raw = torch.mm(h_all.squeeze(), self.attention_map[:,None])
+        att = F.softmax(att_raw.squeeze(), dim=0)
 
         if return_weights:
             return att
         else:
-            return torch.mm(att[None,:], h_all).squeeze()
+            return torch.mm(att[None,:], h_all.squeeze()).squeeze()
 
     def _run_regression(self, h_last):
         for i, linear_map in enumerate(self.linear_maps):
@@ -286,7 +300,7 @@ class RNNRegression(torch.nn.Module):
         indices = [[self.vocab_hash[w]] for w in words]
         indices = torch.LongTensor(indices)
         indices = indices.cuda() if self.gpu else indices
-        indices = Variable(indices)
+        #indices = Variable(indices) -- not required in PyTorch v0.4 and higher
         
         return self.embeddings(indices).squeeze()
 
