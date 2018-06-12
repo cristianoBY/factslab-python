@@ -255,7 +255,7 @@ class RNNRegression(torch.nn.Module):
             if isinstance(rnn, ChildSumTreeLSTM):
                 h_all, h_last = rnn(inputs, structure)
             else:
-                h_all, h_last = rnn(inputs[:,None,:])
+                h_all, h_last = rnn(inputs[:,None,:], )
 
             inputs = h_all.squeeze()
 
@@ -280,7 +280,7 @@ class RNNRegression(torch.nn.Module):
         return h_last 
     
     def _regression_nonlinearity(self, x):
-        return F.tanh(x)
+        return F.relu(x)
     
     def _preprocess_inputs(self, inputs):
         """Apply some function(s) to the input embeddings
@@ -293,7 +293,7 @@ class RNNRegression(torch.nn.Module):
 
     def _postprocess_outputs(self, outputs):
         """Apply some function(s) to the output value(s)"""
-        return outputs
+        return F.log_softmax(outputs, dim=1)
 
     
     def _get_inputs(self, words):
