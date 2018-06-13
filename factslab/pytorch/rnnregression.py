@@ -224,6 +224,7 @@ class RNNRegression(torch.nn.Module):
         
         inputs = self._get_inputs(words)    #Dim: [seq_len, embed_dim]
         inputs = inputs.float() 
+        inputs = inputs.cuda() if self.gpu else inputs
         inputs = self._preprocess_inputs(inputs)
         
         h_all, h_last = self._run_rnns(inputs, structures)
@@ -299,7 +300,7 @@ class RNNRegression(torch.nn.Module):
     def _get_inputs(self, words):
         indices = [[self.vocab_hash[w]] for w in words]
         indices = torch.LongTensor(indices)
-        indices = indices.cuda() if self.gpu else indices
+        #indices = indices.cuda() if self.gpu else indices
         #indices = Variable(indices) -- not required in PyTorch v0.4 and higher
         
         return self.embeddings(indices).squeeze()
