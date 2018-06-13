@@ -1,3 +1,5 @@
+import nltk
+
 class DependencyTree(nltk.Tree):
     """A dependency tree
     
