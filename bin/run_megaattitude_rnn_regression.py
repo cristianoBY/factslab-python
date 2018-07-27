@@ -1,11 +1,10 @@
 import argparse
 import numpy as np
 import pandas as pd
-import pdb
 from torch.nn import LSTM
 from torch.cuda import is_available
 from torch import device
-from factslab.utility import load_glove_embedding
+from factslab.utility import load_glove_embedding, arrange_inputs
 from factslab.datastructures import ConstituencyTree
 from factslab.pytorch.childsumtreelstm import ChildSumConstituencyTreeLSTM
 from factslab.pytorch.rnnregression import RNNRegressionTrainer
@@ -94,25 +93,41 @@ vocab = list({word
 # load the glove embedding
 embeddings = load_glove_embedding(args.embeddings, vocab)
 device_to_use = device("cuda:0" if is_available() else "cpu")
+attributes = ['acceptability']
 
 if args.rnntype == "tree":
+    rnntype = ChildSumConstituencyTreeLSTM
     x_raw = [structures[c] for c in data.condition.values]
     x = [x_raw[i:i + args.batch] for i in range(0, len(x_raw), args.batch)]
     y_raw = data.response.values
     y = [y_raw[i:i + args.batch] for i in range(0, len(y_raw), args.batch)]
-    rnntype = ChildSumConstituencyTreeLSTM
-    args.batch = 1
+
 elif args.rnntype == "linear":
-    # Implmenent mini-batching
-    x_raw = [structures[c].words() for c in data.condition.values]
-    x = [x_raw[i:i + args.batch] for i in range(0, len(x_raw), args.batch)]
-    y_raw = data.response.values
-    y = [y_raw[i:i + args.batch] for i in range(0, len(y_raw), args.batch)]
     rnntype = LSTM
-    # Take care of the fact that the last batch doesn't have size 128. This
-    # casues problems in attention
+    dev_y = {}
+    x_raw = [structures[c].words() for c in data.condition.values]
+    y_raw = data.response.values
+    dev_x = x_raw[int(len(x_raw) * 0.9):]
+    x_raw = x_raw[:int(len(x_raw) * 0.9)]
+    dev_y['acceptability'] = y_raw[int(len(y_raw) * 0.9):]
+    y_raw = y_raw[:int(len(y_raw) * 0.9)]
+
+    x = [x_raw[i:i + args.batch] for i in range(0, len(x_raw), args.batch)]
     x[-1] = x[-1] + x[-2][0:len(x[-2]) - len(x[-1])]
-    y[-1] = np.append(y[-1], y[-2][0:len(y[-2]) - len(y[-1])])
+
+    y = {}
+    wts_batch = {}
+    for attr in attributes:
+        y[attr] = [y_raw[i:i + args.batch] for i in range(0, len(y_raw), args.batch)]
+        y[attr][-1] = np.append(y[attr][-1], y[attr][-2][0:len(y[attr][-2]) - len(y[attr][-1])])
+        wts_batch[attr] = [[None for i in range(args.batch)] for j in range(len(x))]
+
+    tokens_batch = [[None for i in range(args.batch)] for j in range(len(x))]
+    x, y, loss_wts, lengths, tokens = arrange_inputs(data_batch=x,
+                                                     targets_batch=y,
+                                                     wts_batch=wts_batch,
+                                                     tokens_batch=tokens_batch,
+                                                     attributes=attributes)
 else:
     sys.exit('Error. Argument rnntype must be tree or linear')
 
@@ -123,6 +138,7 @@ trainer = RNNRegressionTrainer(embeddings=embeddings, device=device_to_use,
                                regression_type=args.regressiontype,
                                rnn_hidden_sizes=300, num_rnn_layers=1,
                                regression_hidden_sizes=(150,),
-                               batch_size=args.batch)
+                               batch_size=args.batch, attributes=attributes)
 
-trainer.fit(X=x, Y=y, lr=1e-2, verbosity=args.verbosity)
+trainer.fit(X=x, Y=y, lr=1e-2, lengths=lengths, verbosity=args.verbosity,
+            dev=[dev_x, dev_y])
