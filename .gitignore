@@ -4,3 +4,4 @@
 FACTS.lab.egg-info/
 dist/
 **/__pycache__
+*.sbatch
