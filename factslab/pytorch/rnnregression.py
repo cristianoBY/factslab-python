@@ -187,16 +187,15 @@ class RNNRegression(torch.nn.Module):
 
         self.attention = attention
         self.dropout = Dropout()
-
+        last_size = self.rnn_output_size
         if self.attention:
-            if self.has_batch_dim:
+            if isinstance(self.rnns[0], LSTM):
                 self.attention_map = Parameter(torch.zeros(self.batch_size,
                                                            last_size))
             else:
                 self.attention_map = Parameter(torch.zeros(last_size))
 
         for attr in self.attributes:
-            last_size = self.rnn_output_size
             self.linear_maps[attr] = []
             for i, h in enumerate(hidden_sizes):
                 linmap = torch.nn.Linear(last_size, h)
@@ -274,7 +273,7 @@ class RNNRegression(torch.nn.Module):
                 h_all, (h_last, c_last) = rnn(packed)
                 h_all, _ = pad_packed_sequence(h_all, batch_first=True)
             else:
-                h_all, (h_last, c_last) = rnn(inputs.unsqueeze(0))
+                h_all, (h_last, c_last) = rnn(inputs)
             inputs = h_all.squeeze()
 
         return h_all, h_last
@@ -304,8 +303,8 @@ class RNNRegression(torch.nn.Module):
         # for attr in self.attributes:
         #     h[attr] = torch.mm(torch.transpose(h_shared, 0, 1), self.attr_sp[attr]).squeeze()
         h_last = {}
-        if mode == "train":
-            h_in = self.dropout(h_in)
+        # if mode == "train":
+        #     h_in = self.dropout(h_in)
         for attr in self.attributes:
             h_last[attr] = h_in
             for i, linear_map in enumerate(self.linear_maps[attr]):
@@ -468,7 +467,7 @@ class RNNRegressionTrainer(object):
         """
 
         self._X, self._Y = X, Y
-        dev_x, dev_y = dev
+        dev_x, dev_y, dev_lengths = dev
         self._initialize_trainer_regression()
 
         for name, param in self._regression.named_parameters():
@@ -555,7 +554,7 @@ class RNNRegressionTrainer(object):
                 # TODO: generalize for non-linear regression
                 if verbosity:
                     if not (i + 1) % verbosity:
-                        progress = "{:.4f}".format(((i) / total) * 100)
+                        progress = "{:.0f}".format(((i) / total) * 100)
                         self._print_metric(progress, loss_trace, targ_trace, pred_trace)
                         loss_trace = []
                         targ_trace = {}
@@ -568,19 +567,21 @@ class RNNRegressionTrainer(object):
             # Implement early stopping here
             print("VALIDATION")
 
-            predictions = self.predict(X=dev_x)
+            predictions = self.predict(X=dev_x, dev_lengths=dev_lengths)
+
             for attr in self.attributes:
-                outputs = np.array([p[attr].data for p in predictions])
-                targets = dev_y[attr]
+                outputs = predictions[attr]
+                targets = [y for batch in dev_y[attr] for y in batch]
                 correlation = pearsonr(outputs, targets)[0]
                 early_stop[attr].append(correlation)
+
             for attr in self.attributes:
                 print(attr)
                 print("Correlation:", correlation)
                 print("Difference in corr:", early_stop[attr][-1] - early_stop[attr][-2])
-            # if stop_now > 2:
-            #     print("Early Stopping")
-            #     break
+                if (early_stop[attr][-1] - early_stop[attr][-2]) < 0:
+                    print("Early stopping")
+                    break
 
     def _print_metric(self, progress, loss_trace, targ_trace, pred_trace):
 
@@ -593,9 +594,10 @@ class RNNRegressionTrainer(object):
                 targ_var = np.mean(np.square(np.array(targ_trace['acceptability']) - np.mean(Y_flat)))
                 r2 = 1. - (resid_mean / targ_var)
                 corr = pearsonr(targ_trace['acceptability'], pred_trace['acceptability'])[0]
-                print(progress + "%" + '\t\t loss:\t', np.round(resid_mean, sigdig), '\n',
+                print(progress + "%" + '\t\t residual variance:\t', np.round(resid_mean, sigdig), '\n',
+                      ' \t\t total variance:\t', np.round(targ_var, sigdig), '\n',
                       ' \t\t r-squared:\t\t', np.round(r2, sigdig), '\n',
-                      ' \t\t correlation:\t', np.round(corr, sigdig), '\n')
+                      ' \t\t correlation:\t\t', np.round(corr, sigdig), '\n')
                     # ' \t\t total variance:\t', np.round(targ_var, sigdig), '\n'
             elif self._regression_type == "robust":
                 ae = np.abs(targ_trace - np.median(Y_flat))
@@ -624,7 +626,7 @@ class RNNRegressionTrainer(object):
                   ' \t\t total mean cross entropy:\t', np.round(targ_mean_neglogprob, sigdig), '\n',
                   ' \t\t proportion entropy explained:\t', np.round(pnlp, sigdig), '\n')
 
-    def predict(self, X):
+    def predict(self, X, dev_lengths):
         """Predict using the LSTM regression
 
         Parameters
@@ -634,11 +636,10 @@ class RNNRegressionTrainer(object):
             corresponding to a particular kind of RNN
         """
 
-        predictions = []
-        lengths = [len(struct) for struct in X]
-        for struct, length in zip(X, lengths):
-            length = torch.tensor(length, dtype=torch.long, device=self.device)
-            predictions.append(self._regression(struct, tokens=length, lengths=None, mode="dev"))
+        predictions = {'acceptability': []}
+        for struct, lengths in zip(X, dev_lengths):
+            lengths = torch.tensor(lengths, dtype=torch.long, device=self.device)
+            predictions['acceptability'] += self._regression(struct, tokens=lengths, lengths=lengths, mode="dev")['acceptability'].tolist()
         return predictions
         # if self._continuous:
         #     return np.array([p.data.cpu().numpy() for p in predictions])

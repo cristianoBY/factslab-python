@@ -9,6 +9,7 @@ from factslab.datastructures import ConstituencyTree
 from factslab.pytorch.childsumtreelstm import ChildSumConstituencyTreeLSTM
 from factslab.pytorch.rnnregression import RNNRegressionTrainer
 import sys
+import random
 
 # initialize argument parser
 description = 'Run an RNN regression on MegaAttitude.'
@@ -104,22 +105,29 @@ if args.rnntype == "tree":
 
 elif args.rnntype == "linear":
     rnntype = LSTM
-    dev_y = {}
     x_raw = [structures[c].words() for c in data.condition.values]
     y_raw = data.response.values
-    dev_x = x_raw[int(len(x_raw) * 0.9):]
+    combined = list(zip(x_raw, y_raw))
+    random.shuffle(combined)
+    x_raw[:], y_raw[:] = zip(*combined)
+    dev_x_raw = x_raw[int(len(x_raw) * 0.9):]
     x_raw = x_raw[:int(len(x_raw) * 0.9)]
-    dev_y['acceptability'] = y_raw[int(len(y_raw) * 0.9):]
+    dev_y_raw = y_raw[int(len(y_raw) * 0.9):]
     y_raw = y_raw[:int(len(y_raw) * 0.9)]
 
     x = [x_raw[i:i + args.batch] for i in range(0, len(x_raw), args.batch)]
+    dev_x = [dev_x_raw[i:i + args.batch] for i in range(0, len(dev_x_raw), args.batch)]
     x[-1] = x[-1] + x[-2][0:len(x[-2]) - len(x[-1])]
+    dev_x[-1] = dev_x[-1] + dev_x[-2][0:len(dev_x[-2]) - len(dev_x[-1])]
 
     y = {}
+    dev_y = {}
     wts_batch = {}
     for attr in attributes:
         y[attr] = [y_raw[i:i + args.batch] for i in range(0, len(y_raw), args.batch)]
+        dev_y[attr] = [dev_y_raw[i:i + args.batch] for i in range(0, len(dev_y_raw), args.batch)]
         y[attr][-1] = np.append(y[attr][-1], y[attr][-2][0:len(y[attr][-2]) - len(y[attr][-1])])
+        dev_y[attr][-1] = np.append(dev_y[attr][-1], dev_y[attr][-2][0:len(dev_y[attr][-2]) - len(dev_y[attr][-1])])
         wts_batch[attr] = [[None for i in range(args.batch)] for j in range(len(x))]
 
     tokens_batch = [[None for i in range(args.batch)] for j in range(len(x))]
@@ -128,9 +136,14 @@ elif args.rnntype == "linear":
                                                      wts_batch=wts_batch,
                                                      tokens_batch=tokens_batch,
                                                      attributes=attributes)
+    dev_x, dev_y, _, dev_lengths, _ = arrange_inputs(data_batch=dev_x,
+                                           targets_batch=dev_y,
+                                           wts_batch=wts_batch,
+                                           tokens_batch=tokens_batch,
+                                           attributes=attributes)
 else:
     sys.exit('Error. Argument rnntype must be tree or linear')
-
+import ipdb; ipdb.set_trace()
 # train the model
 trainer = RNNRegressionTrainer(embeddings=embeddings, device=device_to_use,
                                rnn_classes=rnntype, bidirectional=True,
@@ -141,4 +154,4 @@ trainer = RNNRegressionTrainer(embeddings=embeddings, device=device_to_use,
                                batch_size=args.batch, attributes=attributes)
 
 trainer.fit(X=x, Y=y, lr=1e-2, lengths=lengths, verbosity=args.verbosity,
-            dev=[dev_x, dev_y])
+            dev=[dev_x, dev_y, dev_lengths])
