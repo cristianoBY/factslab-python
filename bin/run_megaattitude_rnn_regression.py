@@ -40,6 +40,12 @@ parser.add_argument('--rnntype',
 parser.add_argument('--verbosity',
                     type=int,
                     default="1")
+parser.add_argument('--lr',
+                    type=float,
+                    default="0.01")
+parser.add_argument('--L2',
+                    type=float,
+                    default="0")
 parser.add_argument('--attention',
                     action='store_true',
                     help='Turn attention on or off')
@@ -143,7 +149,7 @@ elif args.rnntype == "linear":
                                            attributes=attributes)
 else:
     sys.exit('Error. Argument rnntype must be tree or linear')
-import ipdb; ipdb.set_trace()
+
 # train the model
 trainer = RNNRegressionTrainer(embeddings=embeddings, device=device_to_use,
                                rnn_classes=rnntype, bidirectional=True,
@@ -153,5 +159,5 @@ trainer = RNNRegressionTrainer(embeddings=embeddings, device=device_to_use,
                                regression_hidden_sizes=(150,),
                                batch_size=args.batch, attributes=attributes)
 
-trainer.fit(X=x, Y=y, lr=1e-2, lengths=lengths, verbosity=args.verbosity,
-            dev=[dev_x, dev_y, dev_lengths])
+trainer.fit(X=x, Y=y, lengths=lengths, verbosity=args.verbosity,
+            lr=args.lr, weight_decay=args.L2, dev=[dev_x, dev_y, dev_lengths])

@@ -492,7 +492,7 @@ class RNNRegressionTrainer(object):
         for attr in self.attributes:
             targ_trace[attr] = np.array([])
             pred_trace[attr] = np.array([])
-            early_stop[attr] = [0.0]
+            early_stop = [0.0]
         epoch = 0
         while epoch < self.epochs:
             epoch += 1
@@ -573,15 +573,15 @@ class RNNRegressionTrainer(object):
                 outputs = predictions[attr]
                 targets = [y for batch in dev_y[attr] for y in batch]
                 correlation = pearsonr(outputs, targets)[0]
-                early_stop[attr].append(correlation)
-
+            corrs = []
             for attr in self.attributes:
                 print(attr)
                 print("Correlation:", correlation)
-                print("Difference in corr:", early_stop[attr][-1] - early_stop[attr][-2])
-                if (early_stop[attr][-1] - early_stop[attr][-2]) < 0:
-                    print("Early stopping")
-                    break
+                corrs.append(correlation)
+            early_stop.append(np.mean(corrs))
+            print("Difference in mean corr:", early_stop[-1] - early_stop[-2])
+            if (early_stop[-1] - early_stop[-2]) < 0:
+                break
 
     def _print_metric(self, progress, loss_trace, targ_trace, pred_trace):
 
